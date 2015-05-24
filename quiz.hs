@@ -2,6 +2,7 @@ import Data.List
 import Data.Maybe
 import System.Console.ANSI
 import System.IO
+import System.Posix.Files
 import System.Random
 import System.Random.Shuffle
 import qualified Data.Heap as H
@@ -28,21 +29,18 @@ opString Div   = " ÷ "
 instance Question MathQuestion where
     question q = (equation q) ++ " = "
     answer     = show . eval
-    check q s  = read s == eval q
+    check q r  = read r == eval q
 
 timesTable max = [ MathQuestion Mult x y | x <- [0..max], y <- [0..max] ]
 
 -- Text questions
 
-data TextQuestion = TextQuestion String String deriving (Eq, Ord)
-
-instance Show TextQuestion where
-    show (TextQuestion q a) = "Q. " ++ q ++ " A. " ++ a
+data TextQuestion = TextQuestion String String deriving (Eq, Ord, Show, Read)
 
 instance Question TextQuestion where
     question (TextQuestion q a) = q ++ "? "
     answer (TextQuestion q a)   = a
-    check (TextQuestion _ a) s  = s == a
+    check (TextQuestion _ a) r  = r == a
 
 -- Generic quiz foo
 
@@ -50,13 +48,13 @@ class Question q where
     question, answer :: q -> String
     check            :: q -> String -> Bool
 
-data ToAsk q = ToAsk q Int Int deriving (Eq, Ord, Show)
+data ToAsk q = ToAsk q Int Int deriving (Eq, Ord, Show, Read)
 
 data Quiz q = Quiz { count :: Int
                    , asked :: H.MinPrioHeap Int (ToAsk q)
                    , unasked :: [q]
                    , limit :: Int
-                   } deriving (Show)
+                   } deriving (Show, Read)
 
 newToAsk q = ToAsk q 1 0
 
@@ -77,7 +75,7 @@ answered (ToAsk q gap correct) ok (Quiz count asked qs limit) = Quiz (count + 1)
     newGap     = if ok then gap * 2 else 1
     newCorrect = if ok then correct + 1 else 0
 
-quiz qs = Quiz 0 H.empty qs 3
+quiz qs = Quiz 0 H.empty qs 10
 
 getAnswer :: IO Int
 getAnswer = readLn
@@ -87,19 +85,22 @@ askIt q = do
   clearScreen
   putStr $ question q
   hFlush stdout
-  x <- getLine
-  let ok = check q x
+  r <- getLine
+  let ok = check q r
   putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ (answer q) ++ "."
-  foo <- if not ok then getLine else return ""
+  _ <- if not ok then getLine else return ""
   return ok
 
+foo :: (Question q, Show q) => Maybe (ToAsk q, Quiz q) -> IO ()
 foo (Just (ToAsk q gap correct, qz)) = do
   ok <- askIt q
-
-  runQuiz (answered (ToAsk q gap correct) ok qz)
+  let qz' = answered (ToAsk q gap correct) ok qz
+  saveQuiz qz' "quiz.dat"
+  runQuiz qz'
 
 foo Nothing = putStrLn "Looks like you've got them all."
 
+runQuiz :: (Question q, Show q) => Quiz q -> IO ()
 runQuiz quiz = foo (toAsk quiz)
 
 mathQuestions = [ MathQuestion Plus a b | a <- [0..10], b <- [0..10] ]
@@ -127,6 +128,15 @@ spanishQuestions = [
 
 shuffledQuestions qs rng = shuffle' qs (length qs) rng
 
+saveQuiz q p = writeFile p (show q)
+
+loadQuiz :: FilePath -> IO (Quiz MathQuestion)
+loadQuiz p = readFile p >>= (\s -> readIO s)
+
+newQuiz = getStdGen >>= (\rng -> return $ quiz $ shuffledQuestions (timesTable 20) rng)
+
+
 main = do
-  rng <- getStdGen
-  runQuiz $ quiz $ shuffledQuestions (timesTable 20) rng
+  exists <- fileExist "quiz.dat"
+  q <- if exists then loadQuiz "quiz.dat" else newQuiz
+  runQuiz q
