@@ -1,5 +1,6 @@
 import Data.List
 import Data.Maybe
+import System.Console.ANSI
 import System.IO
 import System.Random
 import System.Random.Shuffle
@@ -7,29 +8,29 @@ import qualified Data.Heap as H
 
 -- Math questions
 
-data Op = Plus | Minus | Mult | Div deriving (Eq, Ord)
+data Op = Plus | Minus | Mult | Div deriving (Eq, Ord, Show, Read)
 
-instance Show Op where
-    show Plus  = " + "
-    show Minus = " - "
-    show Mult  = " * "
-    show Div   = " / "
+data MathQuestion = MathQuestion Op Int Int deriving (Eq, Ord, Show, Read)
 
-data MathQuestion = MathQuestion Op Int Int deriving (Eq, Ord)
+eval (MathQuestion x a b)  = (op x) a b where
+    op Plus  = (+)
+    op Minus = (-)
+    op Mult  = (*)
+    op Div   = div
 
-eval :: MathQuestion -> Int
-eval (MathQuestion Plus a b)  = a + b
-eval (MathQuestion Minus a b) = a - b
-eval (MathQuestion Mult a b)  = a * b
-eval (MathQuestion Div a b)   = a `div` b
+equation (MathQuestion op a b) = (show a) ++ (opString op) ++ (show b)
 
-instance Show MathQuestion where
-    show (MathQuestion op a b) = (show a) ++ (show op) ++ (show b)
+opString Plus  = " + "
+opString Minus = " - "
+opString Mult  = " × "
+opString Div   = " ÷ "
 
 instance Question MathQuestion where
-    question q = (show q) ++ " = "
+    question q = (equation q) ++ " = "
     answer     = show . eval
     check q s  = read s == eval q
+
+timesTable max = [ MathQuestion Mult x y | x <- [0..max], y <- [0..max] ]
 
 -- Text questions
 
@@ -83,15 +84,18 @@ getAnswer = readLn
 
 askIt :: (Question q) => q -> IO Bool
 askIt q = do
+  clearScreen
   putStr $ question q
   hFlush stdout
   x <- getLine
   let ok = check q x
   putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ (answer q) ++ "."
+  foo <- if not ok then getLine else return ""
   return ok
 
 foo (Just (ToAsk q gap correct, qz)) = do
   ok <- askIt q
+
   runQuiz (answered (ToAsk q gap correct) ok qz)
 
 foo Nothing = putStrLn "Looks like you've got them all."
@@ -125,4 +129,4 @@ shuffledQuestions qs rng = shuffle' qs (length qs) rng
 
 main = do
   rng <- getStdGen
-  runQuiz $ quiz $ take 2 $ shuffledQuestions spanishQuestions rng
+  runQuiz $ quiz $ shuffledQuestions (timesTable 20) rng
