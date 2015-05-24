@@ -1,6 +1,8 @@
 import Data.List
-import System.IO
 import Data.Maybe
+import System.IO
+import System.Random
+import System.Random.Shuffle
 import qualified Data.Heap as H
 
 -- Math questions
@@ -47,37 +49,34 @@ class Question q where
     question, answer :: q -> String
     check            :: q -> String -> Bool
 
-data ToAsk q = ToAsk q Int deriving (Eq, Ord, Show)
+data ToAsk q = ToAsk q Int Int deriving (Eq, Ord, Show)
 
 data Quiz q = Quiz { count :: Int
                    , asked :: H.MinPrioHeap Int (ToAsk q)
                    , unasked :: [q]
+                   , limit :: Int
                    } deriving (Show)
 
-newToAsk q = ToAsk q 1
+newToAsk q = ToAsk q 1 0
 
--- Pull a question from either the heap of already asked questions (if
--- one is due) or the list of unasked questions.
-nextQuestion :: Quiz q -> Maybe (ToAsk q, Quiz q)
-
-nextQuestion (Quiz count asked []) = do
-  ((_, a), rest) <- H.view asked
-  return (a, (Quiz count rest []))
-
-nextQuestion (Quiz count asked (q:qs)) | H.isEmpty asked = Just (newToAsk q, Quiz count asked qs)
-
-nextQuestion (Quiz count asked (q:qs)) = Just (if c <= count then oldQuestion else newQuestion) where
+toAsk :: Quiz q -> Maybe (ToAsk q, Quiz q)
+toAsk (Quiz _ asked [] _) | H.isEmpty asked= Nothing
+toAsk (Quiz count asked [] limit) = H.view asked >>= (\((_, a), rest) -> return (a, (Quiz count rest [] limit)))
+toAsk (Quiz count asked (q:qs) limit) | H.isEmpty asked = Just (newToAsk q, Quiz count asked qs limit)
+toAsk (Quiz count asked (q:qs) limit) = Just (if c <= count then oldQuestion else newQuestion) where
     ((c, a), rest) = fromJust $ H.view asked
-    newQuestion = (newToAsk q, Quiz count asked qs)
-    oldQuestion = (a, Quiz count rest (q:qs))
+    newQuestion = (newToAsk q, Quiz count asked qs limit)
+    oldQuestion = (a, Quiz count rest (q:qs) limit)
 
 -- Take the question just asked and whether it was answered correctly and put it back into the Quiz.
 answered :: (ToAsk q) -> Bool -> (Quiz q) -> (Quiz q)
-answered (ToAsk q gap) ok (Quiz count asked qs) = Quiz (count + 1) (H.insert nextTime asked) qs where
-    nextTime = (count + newGap, ToAsk q newGap)
-    newGap = if ok then gap * 2 else 1
+answered (ToAsk q gap correct) ok (Quiz count asked qs limit) = Quiz (count + 1) newAsked qs limit where
+    ask        = ToAsk q newGap newCorrect
+    newAsked   = if newCorrect == limit then asked else H.insert (count + newGap, ask) asked
+    newGap     = if ok then gap * 2 else 1
+    newCorrect = if ok then correct + 1 else 0
 
-quiz qs = Quiz 0 H.empty qs
+quiz qs = Quiz 0 H.empty qs 3
 
 getAnswer :: IO Int
 getAnswer = readLn
@@ -91,13 +90,13 @@ askIt q = do
   putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ (answer q) ++ "."
   return ok
 
-foo (Just (ToAsk q gap, qz)) = do
+foo (Just (ToAsk q gap correct, qz)) = do
   ok <- askIt q
-  runQuiz (answered (ToAsk q gap) ok qz)
+  runQuiz (answered (ToAsk q gap correct) ok qz)
 
-foo Nothing = print "Done."
+foo Nothing = putStrLn "Looks like you've got them all."
 
-runQuiz quiz = foo (nextQuestion quiz)
+runQuiz quiz = foo (toAsk quiz)
 
 mathQuestions = [ MathQuestion Plus a b | a <- [0..10], b <- [0..10] ]
 
@@ -122,4 +121,8 @@ spanishQuestions = [
  TextQuestion "la gorra" "ballcap",
  TextQuestion "los zapatos" "shoes"]
 
-main = runQuiz $ quiz $ take 2 spanishQuestions
+shuffledQuestions qs rng = shuffle' qs (length qs) rng
+
+main = do
+  rng <- getStdGen
+  runQuiz $ quiz $ take 2 $ shuffledQuestions spanishQuestions rng
