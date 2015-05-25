@@ -16,7 +16,7 @@ data Op = Plus | Minus | Mult | Div deriving (Eq, Ord, Show, Read)
 
 data MathQuestion = MathQuestion Op Int Int deriving (Eq, Ord, Show, Read)
 
-eval (MathQuestion x a b)  = op x a b where
+eval (MathQuestion x a b) = op x a b where
     op Plus  = (+)
     op Minus = (-)
     op Mult  = (*)
@@ -47,6 +47,27 @@ instance Question TextQuestion where
     answer (TextQuestion q a)   = a
     check (TextQuestion _ a) r  = r == a
 
+spanishQuestions = [
+ TextQuestion "el abrigo" "coat",
+ TextQuestion "el lazo" "string tie",
+ TextQuestion "la agujeta" "shoelace",
+ TextQuestion "el overol" "overalls",
+ TextQuestion "el peto" "overalls",
+ TextQuestion "los calcetines" "socks",
+ TextQuestion "la pajarita" "bow tie",
+ TextQuestion "el calzoncillo" "under shorts",
+ TextQuestion "los pantalones" "trousers",
+ TextQuestion "la camisa" "shirt",
+ TextQuestion "el sombrero" "hat",
+ TextQuestion "la camiseta" "undershirt",
+ TextQuestion "el suéter" "sweater",
+ TextQuestion "la corbata" "tie",
+ TextQuestion "el suspensorio" "athletic supporter",
+ TextQuestion "la gorbata" "tie",
+ TextQuestion "el traje" "suit",
+ TextQuestion "la gorra" "ballcap",
+ TextQuestion "los zapatos" "shoes"]
+
 -- Generic quiz foo
 
 class Question q where
@@ -65,7 +86,7 @@ data Quiz q = Quiz { count :: Int
 newToAsk q = ToAsk q 1 0
 
 toAsk :: Quiz q -> Maybe (ToAsk q, Quiz q)
-toAsk (Quiz _ asked [] _ _) | H.isEmpty asked= Nothing
+toAsk (Quiz _ asked [] _ _) | H.isEmpty asked = Nothing
 toAsk (Quiz count asked [] limit retired) = H.view asked >>= (\((_, a), rest) -> return (a, Quiz count rest [] limit retired))
 toAsk (Quiz count asked (q:qs) limit retired) | H.isEmpty asked = Just (newToAsk q, Quiz count asked qs limit retired)
 toAsk (Quiz count asked (q:qs) limit retired) = Just (if c <= count then oldQuestion else newQuestion) where
@@ -81,8 +102,6 @@ answered (ToAsk q gap correct) ok (Quiz count asked qs limit retired) = Quiz (co
     newGap     = if ok then gap * 2 else 1
     newCorrect = if ok then correct + 1 else 0
     newRetired = if newCorrect == limit then retired + 1 else retired
-
-quiz qs = Quiz 0 H.empty qs 2 0
 
 getAnswer :: IO Int
 getAnswer = readLn
@@ -116,38 +135,18 @@ runQuiz quiz = run (toAsk quiz) where
       putStrLn "Looks like you've got them all."
 
 
-
-mathQuestions = [ MathQuestion Plus a b | a <- [0..10], b <- [0..10] ]
-
-spanishQuestions = [
- TextQuestion "el abrigo" "coat",
- TextQuestion "el lazo" "string tie",
- TextQuestion "la agujeta" "shoelace",
- TextQuestion "el overol" "overalls",
- TextQuestion "el peto" "overalls",
- TextQuestion "los calcetines" "socks",
- TextQuestion "la pajarita" "bow tie",
- TextQuestion "el calzoncillo" "under shorts",
- TextQuestion "los pantalones" "trousers",
- TextQuestion "la camisa" "shirt",
- TextQuestion "el sombrero" "hat",
- TextQuestion "la camiseta" "undershirt",
- TextQuestion "el suéter" "sweater",
- TextQuestion "la corbata" "tie",
- TextQuestion "el suspensorio" "athletic supporter",
- TextQuestion "la gorbata" "tie",
- TextQuestion "el traje" "suit",
- TextQuestion "la gorra" "ballcap",
- TextQuestion "los zapatos" "shoes"]
-
 shuffledQuestions qs = shuffle' qs (length qs)
 
+saveQuiz :: (Show q) => Quiz q -> FilePath -> IO ()
 saveQuiz q p = writeFile p (show q)
 
-loadQuiz :: FilePath -> IO (Quiz MathQuestion)
+loadQuiz :: (Read q) => FilePath -> IO (Quiz q)
 loadQuiz p = readFile p >>= readIO
 
+quiz :: [q] -> Quiz q
+quiz qs = Quiz 0 H.empty qs 2 0
 
+newQuiz :: Int -> IO (Quiz MathQuestion)
 newQuiz n = liftM (quiz . shuffledQuestions (timesTable n 20)) getStdGen
 
 main = do
