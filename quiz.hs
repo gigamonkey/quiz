@@ -117,6 +117,15 @@ quiz lim qs = Quiz 0 H.empty qs lim 0
 
 -- Console IO quizzer
 
+prompt :: Read a => String -> IO a
+prompt p = liftM read (prompt' p)
+
+prompt' :: String -> IO String
+prompt' p = do
+  putStr $ p ++ " "
+  hFlush stdout
+  getLine
+
 runQuiz :: (Question q, Show q) => Quiz q -> IO ()
 runQuiz quiz = run (toAsk quiz) where
     run (Just (ToAsk q gap correct, qz)) = do
@@ -131,7 +140,7 @@ runQuiz quiz = run (toAsk quiz) where
       removeFile "quiz.dat"
       putStrLn "Looks like you've got them all."
 
-askIt :: (Question q) => q -> IO Bool
+askIt :: Question q => q -> IO Bool
 askIt q = do
   ok <- liftM (check q) (prompt' (question q))
   putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ answer q ++ "."
@@ -139,20 +148,14 @@ askIt q = do
   if not ok then getLine else return ""
   return ok
 
-saveQuiz :: (Show q) => Quiz q -> FilePath -> IO ()
+saveQuiz :: Show q => Quiz q -> FilePath -> IO ()
 saveQuiz q p = writeFile p (show q)
 
-loadQuiz :: (Read q) => FilePath -> IO (Quiz q)
+getQuiz :: Bool -> IO (Quiz MathQuestion)
+getQuiz exists = if exists then loadQuiz "quiz.dat" else newQuiz
+
+loadQuiz :: Read q => FilePath -> IO (Quiz q)
 loadQuiz p = readFile p >>= readIO
-
-prompt :: (Read a) => String -> IO a
-prompt p = liftM read (prompt' p)
-
-prompt' :: String -> IO String
-prompt' p = do
-  putStr $ p ++ " "
-  hFlush stdout
-  getLine
 
 newQuiz :: IO (Quiz MathQuestion)
 newQuiz = do
@@ -160,7 +163,4 @@ newQuiz = do
   l <- prompt "Correct answers required?"
   liftM (quiz l . shuffledQuestions (timesTable n 20)) getStdGen
 
-main = do
-  exists <- fileExist "quiz.dat"
-  q <- if exists then loadQuiz "quiz.dat" else newQuiz
-  runQuiz q
+main = fileExist "quiz.dat" >>= getQuiz >>= runQuiz
