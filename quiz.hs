@@ -112,8 +112,8 @@ stats (Quiz count asked unasked limit retired) = "done: " ++ show retired ++ "; 
 
 shuffledQuestions qs = shuffle' qs (length qs)
 
-quiz :: [q] -> Quiz q
-quiz qs = Quiz 0 H.empty qs 2 0
+quiz :: Int -> [q] -> Quiz q
+quiz lim qs = Quiz 0 H.empty qs lim 0
 
 -- Console IO quizzer
 
@@ -133,13 +133,10 @@ runQuiz quiz = run (toAsk quiz) where
 
 askIt :: (Question q) => q -> IO Bool
 askIt q = do
-  putStr $ question q
-  hFlush stdout
-  r <- getLine
-  let ok = check q r
+  ok <- liftM (check q) (prompt' (question q))
   putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ answer q ++ "."
   threadDelay 300000
-  _ <- if not ok then getLine else return ""
+  if not ok then getLine else return ""
   return ok
 
 saveQuiz :: (Show q) => Quiz q -> FilePath -> IO ()
@@ -148,10 +145,20 @@ saveQuiz q p = writeFile p (show q)
 loadQuiz :: (Read q) => FilePath -> IO (Quiz q)
 loadQuiz p = readFile p >>= readIO
 
+prompt :: (Read a) => String -> IO a
+prompt p = liftM read (prompt' p)
+
+prompt' :: String -> IO String
+prompt' p = do
+  putStr $ p ++ " "
+  hFlush stdout
+  getLine
+
 newQuiz :: IO (Quiz MathQuestion)
 newQuiz = do
-  n <- readLn
-  liftM (quiz . shuffledQuestions (timesTable n 20)) getStdGen
+  n <- prompt "Which times table?"
+  l <- prompt "Correct answers required?"
+  liftM (quiz l . shuffledQuestions (timesTable n 20)) getStdGen
 
 main = do
   exists <- fileExist "quiz.dat"
