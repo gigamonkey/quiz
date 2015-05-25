@@ -1,4 +1,5 @@
 import Control.Concurrent
+import Control.Monad
 import Data.List
 import Data.Maybe
 import System.Console.ANSI
@@ -15,13 +16,13 @@ data Op = Plus | Minus | Mult | Div deriving (Eq, Ord, Show, Read)
 
 data MathQuestion = MathQuestion Op Int Int deriving (Eq, Ord, Show, Read)
 
-eval (MathQuestion x a b)  = (op x) a b where
+eval (MathQuestion x a b)  = op x a b where
     op Plus  = (+)
     op Minus = (-)
     op Mult  = (*)
     op Div   = div
 
-equation (MathQuestion op a b) = (show a) ++ (opString op) ++ (show b)
+equation (MathQuestion op a b) = show a ++ opString op ++ show b
 
 opString Plus  = " + "
 opString Minus = " - "
@@ -29,7 +30,7 @@ opString Mult  = " × "
 opString Div   = " ÷ "
 
 instance Question MathQuestion where
-    question q = (equation q) ++ " = "
+    question q = equation q ++ " = "
     answer     = show . eval
     check q r  = read r == eval q
 
@@ -65,7 +66,7 @@ newToAsk q = ToAsk q 1 0
 
 toAsk :: Quiz q -> Maybe (ToAsk q, Quiz q)
 toAsk (Quiz _ asked [] _ _) | H.isEmpty asked= Nothing
-toAsk (Quiz count asked [] limit retired) = H.view asked >>= (\((_, a), rest) -> return (a, (Quiz count rest [] limit retired)))
+toAsk (Quiz count asked [] limit retired) = H.view asked >>= (\((_, a), rest) -> return (a, Quiz count rest [] limit retired))
 toAsk (Quiz count asked (q:qs) limit retired) | H.isEmpty asked = Just (newToAsk q, Quiz count asked qs limit retired)
 toAsk (Quiz count asked (q:qs) limit retired) = Just (if c <= count then oldQuestion else newQuestion) where
     ((c, a), rest) = fromJust $ H.view asked
@@ -73,7 +74,7 @@ toAsk (Quiz count asked (q:qs) limit retired) = Just (if c <= count then oldQues
     oldQuestion = (a, Quiz count rest (q:qs) limit retired)
 
 -- Take the question just asked and whether it was answered correctly and put it back into the Quiz.
-answered :: (ToAsk q) -> Bool -> (Quiz q) -> (Quiz q)
+answered :: ToAsk q -> Bool -> Quiz q -> Quiz q
 answered (ToAsk q gap correct) ok (Quiz count asked qs limit retired) = Quiz (count + 1) newAsked qs limit newRetired where
     ask        = ToAsk q newGap newCorrect
     newAsked   = if newCorrect == limit then asked else H.insert (count + newGap, ask) asked
@@ -92,13 +93,13 @@ askIt q = do
   hFlush stdout
   r <- getLine
   let ok = check q r
-  putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ (answer q) ++ "."
+  putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ answer q ++ "."
   threadDelay 300000
   _ <- if not ok then getLine else return ""
   return ok
 
 
-stats (Quiz count asked unasked limit retired) = "done: " ++ (show retired) ++ "; in play: " ++ (show $ H.size asked) ++ "; unasked: " ++ (show $ length unasked) ++ "; limit: " ++ (show limit)
+stats (Quiz count asked unasked limit retired) = "done: " ++ show retired ++ "; in play: " ++ show (H.size asked) ++ "; unasked: " ++ show (length unasked) ++ "; limit: " ++ show limit
 
 runQuiz :: (Question q, Show q) => Quiz q -> IO ()
 runQuiz quiz = run (toAsk quiz) where
@@ -139,15 +140,15 @@ spanishQuestions = [
  TextQuestion "la gorra" "ballcap",
  TextQuestion "los zapatos" "shoes"]
 
-shuffledQuestions qs rng = shuffle' qs (length qs) rng
+shuffledQuestions qs = shuffle' qs (length qs)
 
 saveQuiz q p = writeFile p (show q)
 
 loadQuiz :: FilePath -> IO (Quiz MathQuestion)
-loadQuiz p = readFile p >>= (\s -> readIO s)
+loadQuiz p = readFile p >>= readIO
 
 
-newQuiz n = getStdGen >>= (\rng -> return $ quiz $ shuffledQuestions (timesTable n 20) rng)
+newQuiz n = liftM (quiz . shuffledQuestions (timesTable n 20)) getStdGen
 
 main = do
   exists <- fileExist "quiz.dat"
