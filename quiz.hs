@@ -104,22 +104,14 @@ answered (ToAsk q gap correct) ok (Quiz count asked qs limit retired) = Quiz (co
     correct' = if ok then correct + 1 else 0
     retired' = if correct' == limit then retired + 1 else retired
 
-getAnswer :: IO Int
-getAnswer = readLn
-
-askIt :: (Question q) => q -> IO Bool
-askIt q = do
-  putStr $ question q
-  hFlush stdout
-  r <- getLine
-  let ok = check q r
-  putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ answer q ++ "."
-  threadDelay 300000
-  _ <- if not ok then getLine else return ""
-  return ok
-
-
 stats (Quiz count asked unasked limit retired) = "done: " ++ show retired ++ "; in play: " ++ show (H.size asked) ++ "; unasked: " ++ show (length unasked) ++ "; limit: " ++ show limit
+
+shuffledQuestions qs = shuffle' qs (length qs)
+
+quiz :: [q] -> Quiz q
+quiz qs = Quiz 0 H.empty qs 2 0
+
+-- Console IO quizzer
 
 runQuiz :: (Question q, Show q) => Quiz q -> IO ()
 runQuiz quiz = run (toAsk quiz) where
@@ -135,8 +127,16 @@ runQuiz quiz = run (toAsk quiz) where
       removeFile "quiz.dat"
       putStrLn "Looks like you've got them all."
 
-
-shuffledQuestions qs = shuffle' qs (length qs)
+askIt :: (Question q) => q -> IO Bool
+askIt q = do
+  putStr $ question q
+  hFlush stdout
+  r <- getLine
+  let ok = check q r
+  putStrLn $ if ok then "Right!" else "Oops. The answer is " ++ answer q ++ "."
+  threadDelay 300000
+  _ <- if not ok then getLine else return ""
+  return ok
 
 saveQuiz :: (Show q) => Quiz q -> FilePath -> IO ()
 saveQuiz q p = writeFile p (show q)
@@ -144,13 +144,12 @@ saveQuiz q p = writeFile p (show q)
 loadQuiz :: (Read q) => FilePath -> IO (Quiz q)
 loadQuiz p = readFile p >>= readIO
 
-quiz :: [q] -> Quiz q
-quiz qs = Quiz 0 H.empty qs 2 0
-
-newQuiz :: Int -> IO (Quiz MathQuestion)
-newQuiz n = liftM (quiz . shuffledQuestions (timesTable n 20)) getStdGen
+newQuiz :: IO (Quiz MathQuestion)
+newQuiz = do
+  n <- readLn
+  liftM (quiz . shuffledQuestions (timesTable n 20)) getStdGen
 
 main = do
   exists <- fileExist "quiz.dat"
-  q <- if exists then loadQuiz "quiz.dat" else readLn >>= newQuiz
+  q <- if exists then loadQuiz "quiz.dat" else newQuiz
   runQuiz q
