@@ -83,8 +83,7 @@ data Quiz q = Quiz { count :: Int
                    , retired :: Int
                    } deriving (Show, Read)
 
-newToAsk q = ToAsk q 1 0
-
+-- Extract the next question from the quiz.
 toAsk :: Quiz q -> Maybe (ToAsk q, Quiz q)
 toAsk (Quiz _ asked [] _ _) | H.isEmpty asked = Nothing
 toAsk (Quiz count asked [] limit retired) = H.view asked >>= (\((_, a), rest) -> return (a, Quiz count rest [] limit retired))
@@ -94,14 +93,16 @@ toAsk (Quiz count asked (q:qs) limit retired) = Just (if c <= count then oldQues
     newQuestion = (newToAsk q, Quiz count asked qs limit retired)
     oldQuestion = (a, Quiz count rest (q:qs) limit retired)
 
--- Take the question just asked and whether it was answered correctly and put it back into the Quiz.
+newToAsk q = ToAsk q 1 0
+
+-- Update quiz based on the question just asked and whether it was answered correctly.
 answered :: ToAsk q -> Bool -> Quiz q -> Quiz q
-answered (ToAsk q gap correct) ok (Quiz count asked qs limit retired) = Quiz (count + 1) newAsked qs limit newRetired where
-    ask        = ToAsk q newGap newCorrect
-    newAsked   = if newCorrect == limit then asked else H.insert (count + newGap, ask) asked
-    newGap     = if ok then gap * 2 else 1
-    newCorrect = if ok then correct + 1 else 0
-    newRetired = if newCorrect == limit then retired + 1 else retired
+answered (ToAsk q gap correct) ok (Quiz count asked qs limit retired) = Quiz (count + 1) asked' qs limit retired' where
+    ask      = ToAsk q gap' correct'
+    asked'   = if correct' == limit then asked else H.insert (count + gap', ask) asked
+    gap'     = if ok then gap * 2 else 1
+    correct' = if ok then correct + 1 else 0
+    retired' = if correct' == limit then retired + 1 else retired
 
 getAnswer :: IO Int
 getAnswer = readLn
