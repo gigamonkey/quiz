@@ -36,8 +36,6 @@ instance Question MathQuestion where
 
 timesTable n max = [ MathQuestion Mult n x | x <- [0..max] ] ++ [ MathQuestion Mult x n | x <- [0..max] ]
 
---timesTable max = [ MathQuestion Mult x y | x <- [0..max], y <- [0..max] ]
-
 -- Text questions
 
 data TextQuestion = TextQuestion String String deriving (Eq, Ord, Show, Read)
@@ -85,9 +83,15 @@ data Quiz q = Quiz { count :: Int
 
 -- Extract the next question from the quiz.
 toAsk :: Quiz q -> Maybe (ToAsk q, Quiz q)
+
 toAsk (Quiz _ asked [] _ _) | H.isEmpty asked = Nothing
-toAsk (Quiz count asked [] limit retired) = H.view asked >>= (\((_, a), rest) -> return (a, Quiz count rest [] limit retired))
+
+toAsk (Quiz count asked [] limit retired) = do
+  ((_, a), rest) <- H.view asked
+  return (a, Quiz count rest [] limit retired)
+
 toAsk (Quiz count asked (q:qs) limit retired) | H.isEmpty asked = Just (newToAsk q, Quiz count asked qs limit retired)
+
 toAsk (Quiz count asked (q:qs) limit retired) = Just (if c <= count then oldQuestion else newQuestion) where
     ((c, a), rest) = fromJust $ H.view asked
     newQuestion = (newToAsk q, Quiz count asked qs limit retired)
