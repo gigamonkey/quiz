@@ -16,3 +16,5 @@ tidy:
 
 clean: tidy
 	rm -f quiz quiz.dat
+	rm -f *.hi
+	rm -f *.o

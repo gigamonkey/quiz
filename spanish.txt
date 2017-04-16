@@ -1,0 +1,19 @@
+el abrigo	coat
+el lazo         string tie
+la agujeta	shoelace
+el overol       overalls
+el peto         overalls
+los calcetines	socks
+la pajarita	bow tie
+el calzoncillo	under shorts
+los pantalones	trousers
+la camisa	shirt
+el sombrero	hat
+la camiseta	undershirt
+el suéter	sweater
+la corbata	tie
+el suspensorio	athletic supporter
+la gorbata	tie
+el traje	suit
+la gorra	ballcap
+los zapatos	shoes
