@@ -36,6 +36,10 @@ instance Question MathQuestion where
 
 timesTable n max = [ MathQuestion Mult n x | x <- [0..max] ] ++ [ MathQuestion Mult x n | x <- [0..max] ]
 
+subtractions = [ MathQuestion Minus a b | a <- [10..99], b <- [10..a] ]
+
+
+
 -- Text questions
 
 data TextQuestion = TextQuestion String String deriving (Eq, Ord, Show, Read)
@@ -102,8 +106,7 @@ newToAsk q = ToAsk q 1 0
 -- Update quiz based on the question just asked and whether it was answered correctly.
 answered :: ToAsk q -> Bool -> Quiz q -> Quiz q
 answered (ToAsk q gap correct) ok (Quiz count asked qs limit retired) = Quiz (count + 1) asked' qs limit retired' where
-    ask      = ToAsk q gap' correct'
-    asked'   = if correct' == limit then asked else H.insert (count + gap', ask) asked
+    asked'   = if correct' == limit then asked else H.insert (count + gap', ToAsk q gap' correct') asked
     gap'     = if ok then gap * 2 else 1
     correct' = if ok then correct + 1 else 0
     retired' = if correct' == limit then retired + 1 else retired
@@ -162,5 +165,8 @@ newQuiz = do
   n <- prompt "Which times table?"
   l <- prompt "Correct answers required?"
   liftM (quiz l . shuffledQuestions (timesTable n 20)) getStdGen
+
+subQuiz :: IO (Quiz MathQuestion)
+subQuiz = liftM (quiz 1 . shuffledQuestions subtractions) getStdGen
 
 main = fileExist "quiz.dat" >>= getQuiz >>= runQuiz
